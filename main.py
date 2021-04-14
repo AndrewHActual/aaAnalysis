@@ -219,7 +219,11 @@ def ivar_aavariants(dirpath):
     annotdf["aa_pos"] = annotdf["aa_pos"].apply(np.floor)
     annotdf["aa_pos"] = annotdf["aa_pos"] + 1
 
-    return annotdf[["seq_name","gene_name","IV_ref_aa","IV_aa_pos","IV_qry_AA"]]
+    # Take only the columns we need
+    annotdf = annotdf[["seq_name","gene_name","REF_AA","aa_pos","ALT_AA"]]
+    annotdf.columns = ["seq_name", "gene_name", "IV_ref_aa", "IV_aa_pos", "IV_qry_AA"]
+
+    return annotdf
 
 # NextClade variants
 #   Input: directory path
