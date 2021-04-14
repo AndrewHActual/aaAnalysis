@@ -40,7 +40,7 @@ def parse_strippedGFF(strippedGFF_file):
 
 # Pull in list of samples
 
-# Dais ribosome
+# IRMA/Dais ribosome
 #   Take in dais-ribosome output
 #   Pull in ref aa seq for each gene from the genbank record
 #   Parse .ins and .del files
@@ -118,6 +118,7 @@ def irma_aavariants(dirpath):
     #   Seq_name, gene name, ref aa (or -), upstream aa, pos, qry aa
     #   Ugh, we're fully committed to separating out each aa in a multi-aa insertion too
     #   Or not... We're just reporting them directly.
+    #   TODO: Not tested even a little
     for index, qryinsrec in qryinsdf.iterrows():
         if not qryinsrec['Protein'].casefold() in onlythesegenes:
             continue
@@ -331,8 +332,8 @@ def dir_to_dataframe_plus(dirpath, suffixes, sep, trimcharacter, columnnames=Non
 if __name__ == '__main__':
 #    parse_genbank("ref/NC_045512.gb")
 #    parse_strippedGFF("ref/MN908947.3.tsv")
-#    nextclade_aavariants("M347-21-011/nextclade/")
-
 #    dir_to_dataframe_plus("M347-21-011/ivar_variant/",".variants.tsv","\t",".")
-#    test = ivar_aavariants("M347-21-011/ivar_variant/")
-    irma_aavariants("M347-21-011/dais-ribo/")
+
+    nextclade_df = nextclade_aavariants("M347-21-011/nextclade/")
+    ivar_df = ivar_aavariants("M347-21-011/ivar_variant/")
+    irma_df = irma_aavariants("M347-21-011/dais-ribo/")
