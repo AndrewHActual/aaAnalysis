@@ -78,6 +78,7 @@ def irma_aavariants(dirpath):
     #       And do a literal string comparison for substitutions
     #   Output a dataframe with:
     #       Seq_name, gene name, ref aa, aa pos, and qry aa
+    #   TODO: This is long enough to be its own method
     for index, qryCDSrec in qryseqdf.iterrows():
         if not qryCDSrec['Protein'].casefold() in onlythesegenes:
             continue
@@ -91,15 +92,18 @@ def irma_aavariants(dirpath):
         qrygenename = qryCDSrec['Protein']
         qryseq = qryCDSrec['AA_aln']
 
-        # Get the matching ref aa seq for this gene
-        refaaline = refdf.loc[refdf['gene_name'] == qrygenename.casefold()]
+        # To get the ref aa seq, do a case insensitive search for our query gene name,
+        #   and return a Boolean Series
+        refaabools = refdf['gene_name'].str.contains(qrygenename, case=False)
         # Pandas just wants to keep returning series and dataframes all the way down unless you use this
-        refseq = refaaline['translation'].iloc[0]
+        refseq = refdf[refaabools]['translation'].iloc[0]
 
         # String comparison between two
         mutation_list = mutation_list_strict(refseq,qryseq)
 
         # Turn list of mutations (ref aa, aa pos, qry aa) into a df
+        # TODO: This returns a lot of substitutions that are X's (ambiguity aa). Should at least offer
+        #   a flag to ignore Xs
         mutation_df = pd.DataFrame(mutation_list,
                                    columns=["RV_ref_aa","RV_aa_pos","RV_qry_aa"])
         # Then brute force add the sequence name and gene/protein
@@ -121,22 +125,40 @@ def irma_aavariants(dirpath):
         ins_df.insert(2,'RV_ref_aa','-')
         ins_df.columns = ["seq_name","gene_name","RV_ref_aa","RV_aa_pos","RV_qry_aa"]
 
+        # Append that to our variants df
+        variants_df = variants_df.append(ins_df)
+
     # Extract deletions from qrydeldf
     #   Output a df with:
     #   Seq_name, gene name, ref aa, upstream aa, pos, qry aa (-)
     #   Break up longer deletions into single aa deletions
+    #   TODO: This is long enough to be its own method
     for index, qrydelrec in qrydeldf.iterrows():
-        #if not qrydelrec['Protein'].casefold() in onlythesegenes:
-        #    continue
-        delrange = range(qrydelrec['Del_AA_start'],qrydelrec['Del_AA_end']+1)
-        refaaline = refdf.loc[refdf['gene_name'] == qrydelrec['Protein'].casefold()]
-        refseq = refaaline['translation'].iloc[0]
-        print("garbage")
+        if not qrydelrec['Protein'].casefold() in onlythesegenes:
+            continue
+
+        # First, get the ref aa seq, do a case insensitive search for our query gene name,
+        #   and return a Boolean Series
+        refaabools = refdf['gene_name'].str.contains(qrydelrec['Protein'], case=False)
+        # Pandas just wants to keep returning series and dataframes all the way down unless you use this
+        refseq = refdf[refaabools]['translation'].iloc[0]
+
+        # Iterate over the query's deletion range to output
+        #   each ref aa, position, and qry gap
+        del_list = []
+        delrange = range(qrydelrec['Del_AA_start'], qrydelrec['Del_AA_end'] + 1)
+        for pos in delrange:
+            del_list.append([qrydelrec['seq_name'],qrydelrec['Protein'],refseq[pos-1],pos,"-"])
+
+        del_df = pd.DataFrame(del_list)
+        del_df.columns = ["seq_name", "gene_name", "RV_ref_aa", "RV_aa_pos", "RV_qry_aa"]
+
+        # Append that to our variants df
+        variants_df = variants_df.append(del_df)
 
     # mutationdf = mutation_list_strict("MAIVBOIF","MAQV.PIFRT")
 
-    # Concatonate all three dfs into one!
-    return True
+    return variants_df
 
 #   Replicate udf-bioutils:Mutation_List_Strict
 #       Takes two strings as input
