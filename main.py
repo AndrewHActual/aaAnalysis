@@ -229,10 +229,11 @@ def ivar_aavariants(dirpath):
 #   Input: directory path
 #   Output: dataframe with samples and aa variants by gene names
 #   Pull in all nextclade files from directory
+#   Nextclade has a file per sample
+#       Each sample is in a single row with all of the aa sub/del/ins in one cell
 #       Parse out sample name, and aa subs/ins/del parsed into gene name, ref aa, aa pos, and qry aa
-# TODO: Convert to using dir_to_dataframe_plus
 def nextclade_aavariants(dirpath):
-    rawdf = dir_to_dataframe(dirpath,".csv")
+    rawdf = dir_to_dataframe_plus(dirpath,".csv",";","_")
     parsedvariantslist = []
 
     for index, row in rawdf.iterrows():
@@ -246,10 +247,7 @@ def nextclade_aavariants(dirpath):
             #   yielded weird behavior when iterating below
 
         # Extract the sequence name from the sequence name column that NextClade assigns
-        # TODO: Less terrible way to extract the sample name from its prefix and suffix
-        seqName = row["seqName"]
-        seqName = seqName.split("_")[1]
-        seqName = seqName.split(".")[0]
+        seqName = row["seq_name"]
 
         # Going through list of subsdels and parse them into tuples,
         #   then into a list with the sequence name
