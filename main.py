@@ -329,6 +329,23 @@ def dir_to_dataframe_plus(dirpath, suffixes, sep, trimcharacter, columnnames=Non
 
     return df
 
+
+def merge_df(df1,df2):
+    len_df1 = len(df1)
+    len_df2 = len(df2)
+
+    if len_df1 >= len_df2:
+        df1_ref_aa = list(df1)[4]
+        df2_ref_aa = list(df2)[4]
+        merged_df = pd.merge(left=df1,right=df2,how='left',left_on=['seq_name','gene_name',df1_ref_aa],right_on=['seq_name','gene_name',df2_ref_aa])
+        return merged_df
+
+    else:
+        df1_ref_aa = list(df1)[4]
+        df2_ref_aa = list(df2)[4]
+        merged_df = pd.merge(left=df1,right=df2,how='right',left_on=['seq_name','gene_name',df1_ref_aa],right_on=['seq_name','gene_name',df2_ref_aa])
+        return merged_df
+
 # Data format for each
 
 if __name__ == '__main__':
@@ -339,3 +356,10 @@ if __name__ == '__main__':
     nextclade_df = nextclade_aavariants("M347-21-011/nextclade/")
     ivar_df = ivar_aavariants("M347-21-011/ivar_variant/")
     irma_df = irma_aavariants("M347-21-011/dais-ribo/")
+
+    nextclade_Sonly_df = nextclade_df[nextclade_df.gene_name == 'S']
+    ivar_Sonly_df = ivar_df[ivar_df.gene_name == 'S']
+    irma_Sonly_df = irma_df[irma_df.RV_qry_aa != 'X']
+
+    merged_df1 = merge_df(nextclade_Sonly_df, ivar_Sonly_df)
+    merged_df2 = merge_df(merged_df1, irma_Sonly_df)
