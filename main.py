@@ -308,29 +308,6 @@ def rvb_aavariants(dirpath):
                              columns=["seq_name", "gene_name", "aa_pos_RVB", "ref_aa_RVB", "qry_aa_RVB"])
     return parsed_df
 
-
-# Directory to raw dataframe
-#   Inputs: directory path string
-#           file suffixes (string or tuple of strings),
-#   output: pandas dataframe
-#   Generate raw dataframe from directory of headered files of the specified suffixes
-#   Header detection relies on pandas' read_csv default behavior
-def dir_to_dataframe(dirpath, suffixes):
-    rowlist = []
-    with os.scandir(dirpath) as it:
-        for direntry in it:
-            if not direntry.name.endswith(suffixes):
-                continue
-            if not direntry.is_file():
-                continue
-            row = pd.read_csv(direntry,
-                              sep=';')
-            rowlist.append(row)
-
-    #   Pandas magic that turns a list into a df
-    df = pd.concat(rowlist)
-    return df
-
 # Directory to not so raw dataframe, but better
 #   Inputs: directory path string
 #           file suffixes (string or tuple of strings),
@@ -374,25 +351,6 @@ def dir_to_dataframe_plus(dirpath, suffixes, sep, trimcharacter, columnnames=Non
     df = pd.concat(rowlist)
 
     return df
-
-
-def merge_df(df1,df2):
-    len_df1 = len(df1)
-    len_df2 = len(df2)
-
-    if len_df1 >= len_df2:
-        df1_ref_aa = list(df1)[4]
-        df2_ref_aa = list(df2)[4]
-        merged_df = pd.merge(left=df1,right=df2,how='left',left_on=['seq_name','gene_name',df1_ref_aa],right_on=['seq_name','gene_name',df2_ref_aa])
-        return merged_df
-
-    else:
-        df1_ref_aa = list(df1)[4]
-        df2_ref_aa = list(df2)[4]
-        merged_df = pd.merge(left=df1,right=df2,how='right',left_on=['seq_name','gene_name',df1_ref_aa],right_on=['seq_name','gene_name',df2_ref_aa])
-        return merged_df
-
-# Data format for each
 
 if __name__ == '__main__':
 #    parse_genbank("ref/NC_045512.gb")
