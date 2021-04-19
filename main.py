@@ -382,25 +382,21 @@ if __name__ == '__main__':
     ivar_Sonly_df = ivar_df[ivar_df.gene_name == 'S']
     irma_Sonly_df = irma_df[irma_df.qry_aa_DR != 'X']
 
-    # Actual 3 way merge
-    merged_df = nextclade_Sonly_df.merge(right=ivar_Sonly_df,
-                         how='outer',
-                         on=['seq_name','gene_name','aa_pos'])
+    # We have to convert the seq_name into something that matches the RVB table
+    # Python pydev thinks like 387 is a bad idea
+    nextclade_Sonly_df['seq_name_short'] = nextclade_Sonly_df['seq_name'].str.rpartition('-')[0]
+    nextclade_Sonly_df = nextclade_Sonly_df.astype({"seq_name_short": str})
 
-    merged_df = merged_df.merge(right=irma_Sonly_df,
-                                how='outer',
-                                on=['seq_name', 'gene_name', 'aa_pos'],
-                                sort=True)
+    # Not quite correct because this should be an outer between RVB and NC, but we don't want the other junk right now
+    merged_df = rvb_df.merge(right=nextclade_Sonly_df,
+                             how='outer',
+                             left_on=['seq_name', 'gene_name', 'aa_pos'],
+                             right_on=['seq_name_short', 'gene_name', 'aa_pos'])
 
-    # One more merge with the table of actual aa values from RVB
-    #   But first we have to convert the seq_name into something that matches the RVB table
-    merged_df['seq_name_short'] = merged_df['seq_name'].str.rpartition('-')[0]
-
-    merged_df = merged_df.astype({"seq_name_short": str})
-
-    merged_df = merged_df.merge(right=rvb_df,
-                                how='left',
-                                left_on=['seq_name_short', 'gene_name', 'aa_pos'],
+    # Part of me can't help but add the Dais-ribosome data...
+    merged_df = merged_df.merge(how='outer',
+                                right=irma_Sonly_df,
+                                left_on=['seq_name_y', 'gene_name', 'aa_pos'],
                                 right_on=['seq_name', 'gene_name', 'aa_pos'],
                                 sort=True)
     print("bleh")
