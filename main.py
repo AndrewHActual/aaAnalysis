@@ -8,6 +8,9 @@ import os
 import re
 
 # Snagging the translated gene sequences and locations from the genbank file
+from pandas import DataFrame
+
+
 def parse_genbank(genbank_file):
     # Give us that delicious genbank file as a SeqRecord
     with open(genbank_file) as handle:
@@ -38,9 +41,7 @@ def parse_strippedGFF(strippedGFF_file):
                          sep="\t")
     return df
 
-# Pull in list of samples
-
-# IRMA/Dais ribosome
+# IRMA/Dais ribosome output parser
 #   Take in dais-ribosome output
 #   Pull in ref aa seq for each gene from the genbank record
 #   Parse .ins and .del files
@@ -161,7 +162,7 @@ def irma_aavariants(dirpath):
 
     return variants_df
 
-#   Replicate udf-bioutils:Mutation_List_Strict
+#   Replicate udf-bioutils:Mutation_List_Strict used by RVB to analyze Dais-Ribosome output
 #       Takes two strings as input
 #   Steps
 #       Gets shorter length of the two strings
@@ -263,6 +264,51 @@ def nextclade_aavariants(dirpath):
                             columns=["seq_name", "gene_name", "NC_ref_aa", "NC_aa_pos", "NC_qry_aa"])
     return(parseddf)
 
+#   Extract lightly processed .csv containing s gene aa variants from the SC2 Overarching Sample file
+#       As of 4/18/21
+#   Input CSV Rows will have the sample ID, lineage call (out of date), and amino acid substitutions
+#       each followed by another row that is just the aa substitutions which can be discarded
+#   Returns df with one aa variant per line
+#       NOTE: Follows a different column order from the other aa variant dfs
+#       seq name, (s)gene name (static), aa pos, ref aa, qry aa
+def rvb_aavariants(dirpath):
+    raw_df = pd.read_csv(dirpath,
+                         sep = "\t")
+    # Strip off those null named rows which were just part of the terrible excel processing
+    raw_df = raw_df[raw_df['Strain_ID'].notnull()]
+
+    # Break down into table with strain ID and parsed out s-gene substitutions
+    #   strain ID, aa pos, ref_aa_rvb, qry_aa_rvb
+    #   We're ignoring the hell out of that lineage
+    #   Every single gene in these list are the S genes
+    parsed_list = []
+    genename = 'S'
+
+    for index, row in raw_df.iterrows():
+        subst_raw = row['s_subst']
+        
+        # Drop a mostly empty row for samples without substitutions
+        if subst_raw == "None":
+            parsed_list.append([row['Strain_ID'], genename, 0, None, None])
+            continue
+            
+        # For each subst in s_subst...
+        #   Split out the subst and parse each out into a fresh row
+        subst_list = subst_raw.split(",")
+        for subst in subst_list:
+            # Added something to get rid of white space characters because Excel sucks
+            matches = re.match(r'(\D-*)(\d*)(\D-*)', subst.strip())
+            matches_array = list(matches.groups())
+
+            # We put the aa pos right after the name to make the final table look nicer
+            parsed = [row['Strain_ID'], genename, matches_array[1], matches_array[0], matches_array[2]]
+            parsed_list.append(parsed)
+
+    parsed_df: DataFrame = pd.DataFrame(parsed_list,
+                             columns=["seq_name", "gene_name", "aa_pos_RVB", "ref_aa_RVB", "qry_aa_RVB"])
+    return parsed_df
+
+
 # Directory to raw dataframe
 #   Inputs: directory path string
 #           file suffixes (string or tuple of strings),
@@ -353,13 +399,50 @@ if __name__ == '__main__':
 #    parse_strippedGFF("ref/MN908947.3.tsv")
 #    dir_to_dataframe_plus("M347-21-011/ivar_variant/",".variants.tsv","\t",".")
 
-    nextclade_df = nextclade_aavariants("M347-21-011/nextclade/")
-    ivar_df = ivar_aavariants("M347-21-011/ivar_variant/")
-    irma_df = irma_aavariants("M347-21-011/dais-ribo/")
+    nextclade_df = nextclade_aavariants("M3235-21-013/nextclade/")
+    ivar_df = ivar_aavariants("M3235-21-013/ivar_variants/")
+    irma_df = irma_aavariants("M3235-21-013/dais-ribo/")
+    rvb_df = rvb_aavariants("ref/SC2_Overarching_lineage_sgenesubst.txt")
 
+    # Fix aa column name for easy merging
+    nextclade_df.columns = ["seq_name", "gene_name", "ref_aa_NC", "aa_pos", "qry_aa_NC"]
+    ivar_df.columns = ["seq_name", "gene_name", "ref_aa_IV", "aa_pos", "qry_aa_IV"]
+    irma_df.columns = ["seq_name", "gene_name", "ref_aa_DR", "aa_pos", "qry_aa_DR"]
+    rvb_df.columns = ["seq_name", "gene_name", "aa_pos", "ref_aa_RVB", "qry_aa_RVB"]
+
+    # TODO: Guess we have to convert the dtypes of all of our columns for this to be okay???
+    #   https://stackoverflow.com/questions/39582984/pandas-merging-on-string-columns-not-working-bug/49912193
+    #   Super gross typing problem. Perhaps unavoidable
+    nextclade_df = nextclade_df.astype({"seq_name": str, "gene_name": str, "ref_aa_NC": str, "aa_pos": int, "qry_aa_NC":str})
+    ivar_df = ivar_df.astype({"seq_name": str, "gene_name": str, "ref_aa_IV": str, "aa_pos": int, "qry_aa_IV":str})
+    irma_df = irma_df.astype({"seq_name": str, "gene_name": str, "ref_aa_DR": str, "aa_pos": int, "qry_aa_DR":str})
+    rvb_df = rvb_df.astype({"seq_name": str, "gene_name": str, "aa_pos": int, "ref_aa_RVB": str, "qry_aa_RVB":str})
+
+    # Bunch of filters to just get us the S gene
+    #   IRMA is already S gene filtered, but we have to filter out X ambiguity aa's
     nextclade_Sonly_df = nextclade_df[nextclade_df.gene_name == 'S']
     ivar_Sonly_df = ivar_df[ivar_df.gene_name == 'S']
-    irma_Sonly_df = irma_df[irma_df.RV_qry_aa != 'X']
+    irma_Sonly_df = irma_df[irma_df.qry_aa_DR != 'X']
 
-    merged_df1 = merge_df(nextclade_Sonly_df, ivar_Sonly_df)
-    merged_df2 = merge_df(merged_df1, irma_Sonly_df)
+    # Actual 3 way merge
+    merged_df = nextclade_Sonly_df.merge(right=ivar_Sonly_df,
+                         how='outer',
+                         on=['seq_name','gene_name','aa_pos'])
+
+    merged_df = merged_df.merge(right=irma_Sonly_df,
+                                how='outer',
+                                on=['seq_name', 'gene_name', 'aa_pos'],
+                                sort=True)
+
+    # One more merge with the table of actual aa values from RVB
+    #   But first we have to convert the seq_name into something that matches the RVB table
+    merged_df['seq_name_short'] = merged_df['seq_name'].str.rpartition('-')[0]
+
+    merged_df = merged_df.astype({"seq_name_short": str})
+
+    merged_df = merged_df.merge(right=rvb_df,
+                                how='left',
+                                left_on=['seq_name_short', 'gene_name', 'aa_pos'],
+                                right_on=['seq_name', 'gene_name', 'aa_pos'],
+                                sort=True)
+    print("bleh")
